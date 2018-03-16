@@ -9,8 +9,12 @@ class TankMain():
     enemy_step = 6
     enemy_speed = 3
     enemy_num = 4
-    enemy_list = []
+    # enemy_list = []
+    enemy_group = pygame.sprite.Group()
+    explode_list = []
     my_tank_missle_list = []
+    enemy_missle_group = pygame.sprite.Group()
+
     def startGame(self):
         pygame.init()
         # screen object
@@ -24,9 +28,9 @@ class TankMain():
 
 
         for i in range(1,TankMain.enemy_num):
-            TankMain.enemy_list.append(EnemyTank(screen,'enemy1'))
-            TankMain.enemy_list.append(EnemyTank(screen, 'enemy2'))
-            TankMain.enemy_list.append(EnemyTank(screen, 'enemy3'))
+            TankMain.enemy_group.add(EnemyTank(screen,'enemy1'))
+            TankMain.enemy_group.add(EnemyTank(screen, 'enemy2'))
+            TankMain.enemy_group.add(EnemyTank(screen, 'enemy3'))
 
         while True:
             #color RGB(0,0,0)black,(255,255,255)white
@@ -39,19 +43,42 @@ class TankMain():
             for m in TankMain.my_tank_missle_list:
                 if m.live:
                     m.display()
+                    m.hit_tank()
                     m.move()
                 else:
                     TankMain.my_tank_missle_list.remove(m)
+
+            for m in TankMain.enemy_missle_group:
+                if m.live:
+                    m.display()
+                    # m.hit_tank()
+                    m.move()
+                else:
+                    TankMain.enemy_missle_group.remove(m)
+
             self.getEvent(my_tank)
             # screen.blit(surf,((600-50)//2,(500-50)//2))
-            my_tank.display()
-            my_tank.move()
+
+            if my_tank:
+                my_tank.hit_enemy_missile()
+            if my_tank and my_tank.live:
+                my_tank.display()
+                my_tank.move()
+            else:
+                pass
+                # del(my_tank)
+                my_tank=None
 
 
 
-            for enemy in TankMain.enemy_list:
+            for enemy in TankMain.enemy_group:
                 enemy.display()
                 enemy.enemy_move()
+                enemy.enemy_fire()
+
+            for explode in TankMain.explode_list:
+                explode.display()
+                # explode.step
 
             time.sleep(0.05)
             #pygame.display.flip()
@@ -63,27 +90,31 @@ class TankMain():
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     self.stopGame()
-                elif event.key == K_UP:
-                    my_tank.direction = 'U'
-                    # my_tank.move()
-                    my_tank.stop = False
-                elif event.key == K_DOWN:
-                    my_tank.direction = 'D'
-                    # my_tank.move()
-                    my_tank.stop = False
-                elif event.key == K_LEFT:
-                    my_tank.direction = 'L'
-                    # my_tank.move()
-                    my_tank.stop = False
-                elif event.key == K_RIGHT:
-                    my_tank.direction = 'R'
-                    # my_tank.move()
-                    my_tank.stop = False
-                elif event.key == K_SPACE:
-                    TankMain.my_tank_missle_list.append(my_tank.fire())
+                if my_tank:
+                    if event.key == K_UP:
+                        my_tank.direction = 'U'
+                        # my_tank.move()
+                        my_tank.stop = False
+                    elif event.key == K_DOWN:
+                        my_tank.direction = 'D'
+                        # my_tank.move()
+                        my_tank.stop = False
+                    elif event.key == K_LEFT:
+                        my_tank.direction = 'L'
+                        # my_tank.move()
+                        my_tank.stop = False
+                    elif event.key == K_RIGHT:
+                        my_tank.direction = 'R'
+                        # my_tank.move()
+                        my_tank.stop = False
+                    elif event.key == K_SPACE:
+                        m = my_tank.fire()
+                        m.good = True #mytank's missle
+                        TankMain.my_tank_missle_list.append(m)
             if event.type == KEYUP:
-                if event.key == K_UP or event.key == K_DOWN or event.key == K_LEFT or event.key == K_RIGHT:
-                     my_tank.stop = True
+                if my_tank:
+                    if event.key == K_UP or event.key == K_DOWN or event.key == K_LEFT or event.key == K_RIGHT:
+                         my_tank.stop = True
 
     def stopGame(self):
         pygame.quit()
@@ -91,7 +122,7 @@ class TankMain():
 
     def write_text(self):
         myfont = pygame.font.SysFont("simsunnsimsun",12)
-        text_sf1 = myfont.render("敌方坦克数量 : %d"%len(TankMain.enemy_list),True,(255,0,0))
+        text_sf1 = myfont.render("敌方坦克数量 : %d"%len(TankMain.enemy_group),True,(255,0,0))
         text_sf2 = myfont.render("我方炮弹数量 : %d"%len(TankMain.my_tank_missle_list),True,(255,0,0))
         return text_sf1,text_sf2
 
@@ -124,6 +155,15 @@ class Tank(BaseItem):
         self.live=True
         self.stop=True
         self.load_images(name)
+
+    def hit_enemy_missile(self):
+        hit_list = pygame.sprite.spritecollide(self,TankMain.enemy_missle_group,False)
+        for m in hit_list:
+            m.live = False
+            TankMain.enemy_missle_group.remove(m)
+            self.live=False
+            explode = Explode(self.screen,self.rect)
+            TankMain.explode_list.append(explode)
 
     def load_images(self,name):
         self.images['L']=pygame.image.load('img/'+name+'L.gif')#ctrl +d or +y
@@ -158,6 +198,8 @@ class Tank(BaseItem):
     def fire(self):
         m = Missle(self.screen,self)
         return m
+
+
 class MyTank(Tank):
     def __init__(self,screen,name):
         super().__init__(screen,275,400,name)
@@ -190,6 +232,12 @@ class EnemyTank(Tank):
         elif r == 4:
             self.direction = 'R'
             self.stop = False
+
+    def enemy_fire(self):
+        r = randint(0,50)
+        if r>45:
+            m=self.fire()
+            TankMain.enemy_missle_group.add(m)
 
     def enemy_move(self):
         # print(self.step)
@@ -224,6 +272,7 @@ class Missle(BaseItem):
         self.rect.left=tank.rect.left +(tank.width - self.width)//2 #get int value (//2)
         self.rect.top=tank.rect.top + (tank.height - self.heigh)//2
         self.live=True
+        self.good=True
         # self.load_images(name)
 
     def move(self):
@@ -248,6 +297,41 @@ class Missle(BaseItem):
                      self.rect.bottom += self.speed
                  else:
                      self.live = False
+
+    #mytank's missle,enemytank's missle
+    def hit_tank(self):
+        if self.good:
+            hit_list = pygame.sprite.spritecollide(self,TankMain.enemy_group,False) #may be hit much tank
+            for e in hit_list:
+                e.live=False
+                TankMain.enemy_group.remove(e)
+                self.live=False
+                explode = Explode(self.screen,e.rect)
+                TankMain.explode_list.append(explode)
+
+class Explode(BaseItem):
+
+    def __init__(self,screen,rect):
+        super().__init__(screen)
+        self.live=True
+        self.images=[]
+        for i in range(1,9):
+            self.images.append(pygame.image.load('img/blast'+str(i)+'.gif'))
+        self.step=0
+        self.rect=rect #site is tank's site
+
+    def display(self):
+        if self.live:
+            if self.step == len(self.images): #display the last picture
+                self.live = False
+            else:
+                self.image=self.images[self.step]
+                self.screen.blit(self.image,self.rect)
+                self.step +=1
+        else:
+            return
+
+
 
 game = TankMain()
 game.startGame()
