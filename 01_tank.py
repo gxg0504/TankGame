@@ -14,6 +14,8 @@ class TankMain():
     explode_list = []
     my_tank_missle_list = []
     enemy_missle_group = pygame.sprite.Group()
+    my_tank = None
+    wall = None
 
     def startGame(self):
         pygame.init()
@@ -24,13 +26,15 @@ class TankMain():
         # surf.fill((255,255,255))
         # rect = surf.get_rect()
         pygame.display.set_caption('Tank Game')
-        my_tank = MyTank(screen,'p1tank')
+        TankMain.my_tank = MyTank(screen,'p1tank')
 
 
         for i in range(1,TankMain.enemy_num):
             TankMain.enemy_group.add(EnemyTank(screen,'enemy1'))
             TankMain.enemy_group.add(EnemyTank(screen, 'enemy2'))
             TankMain.enemy_group.add(EnemyTank(screen, 'enemy3'))
+
+        TankMain.wall = Wall(screen,200,300,200,20)
 
         while True:
             #color RGB(0,0,0)black,(255,255,255)white
@@ -56,20 +60,22 @@ class TankMain():
                 else:
                     TankMain.enemy_missle_group.remove(m)
 
-            self.getEvent(my_tank)
+            self.getEvent(TankMain.my_tank,screen)
             # screen.blit(surf,((600-50)//2,(500-50)//2))
 
-            if my_tank:
-                my_tank.hit_enemy_missile()
-            if my_tank and my_tank.live:
-                my_tank.display()
-                my_tank.move()
+            if TankMain.my_tank:
+                TankMain.my_tank.hit_enemy_missile()
+            if TankMain.my_tank and TankMain.my_tank.live:
+                TankMain.my_tank.display()
+                TankMain.my_tank.move()
             else:
                 pass
                 # del(my_tank)
-                my_tank=None
+                TankMain.my_tank=None
 
 
+            TankMain.wall.display()
+            TankMain.wall.hit_other()
 
             for enemy in TankMain.enemy_group:
                 enemy.display()
@@ -83,13 +89,16 @@ class TankMain():
             time.sleep(0.05)
             #pygame.display.flip()
             pygame.display.update()
-    def getEvent(self,my_tank):
+    def getEvent(self,my_tank,screen):
         for event in pygame.event.get():
             if event.type == QUIT:
                 self.stopGame()
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     self.stopGame()
+                if event.key == K_n:
+                    if not TankMain.my_tank:
+                        TankMain.my_tank = MyTank(screen, 'p2tank')
                 if my_tank:
                     if event.key == K_UP:
                         my_tank.direction = 'U'
@@ -155,6 +164,8 @@ class Tank(BaseItem):
         self.live=True
         self.stop=True
         self.load_images(name)
+        self.oldtop = self.rect.top
+        self.oldleft = self.rect.left
 
     def hit_enemy_missile(self):
         hit_list = pygame.sprite.spritecollide(self,TankMain.enemy_missle_group,False)
@@ -171,25 +182,31 @@ class Tank(BaseItem):
         self.images['U']=pygame.image.load('img/'+name+'U.gif')
         self.images['D']=pygame.image.load('img/'+name+'D.gif')
 
+    def stay(self):
+        self.rect.top = self.oldtop
+        self.rect.left= self.rect.left
 
     def move(self):
         if not self.stop:
-             if self.direction == 'L':
+            self.oldleft = self.rect.left
+            self.oldtop = self.rect.top
+
+            if self.direction == 'L':
                  if self.rect.left >0 :
                      self.rect.left -= self.speed
                  else:
                      self.rect.left = 0
-             elif self.direction == 'R':
+            elif self.direction == 'R':
                  if self.rect.right < TankMain.width :
                      self.rect.right += self.speed
                  else:
                      self.rect.right = TankMain.width
-             elif self.direction == 'U':
+            elif self.direction == 'U':
                  if self.rect.top > 0 :
                      self.rect.top -= self.speed
                  else:
                      self.rect.top = 0
-             elif self.direction == 'D':
+            elif self.direction == 'D':
                  if self.rect.bottom < TankMain.height :
                      self.rect.bottom += self.speed
                  else:
@@ -331,7 +348,30 @@ class Explode(BaseItem):
         else:
             return
 
+class Wall(BaseItem):
+    def __init__(self,screen,left,top,width,height):
+        super().__init__(screen)
+        self.color = (255,0,0)
+        self.rect = Rect(left,top,width,height)
 
+    def display(self):
+        self.screen.fill(self.color,self.rect)
+
+    def hit_other(self):
+        if TankMain.my_tank:
+            is_hit = pygame.sprite.collide_rect(self,TankMain.my_tank)
+            if is_hit:
+                TankMain.my_tank.stop = True
+                TankMain.my_tank.stay()
+        if TankMain.enemy_group:
+            hit_list = pygame.sprite.spritecollide(self,TankMain.enemy_group,False) #may be hit much tank
+            for e in hit_list:
+                e.stop = True
+                e.stay()
+        if TankMain.enemy_missle_group:
+            hit_list = pygame.sprite.spritecollide(self, TankMain.enemy_missle_group, False)
+            for em in hit_list:
+                em.live = False
 
 game = TankMain()
 game.startGame()
